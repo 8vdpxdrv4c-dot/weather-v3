@@ -843,23 +843,21 @@ function update(dt) {
   hero.userData.heading = Math.PI / 2;
   hero.rotation.y = hero.userData.heading;
   hero.userData.blob.position.set(hero.position.x, hgt(hero.position.x, hero.position.z) + 0.03, hero.position.z + 0.05);
-  // Elegant large strides: slow cadence, long reach
+  // Elegant large strides — swing on Z (profile plane); knee only folds one way
   hero.userData.walkPh += dt * 4.2;
   const ph = hero.userData.walkPh;
-  // ease sine for smoother weight transfer
   const wc = Math.sin(ph);
   const armW = Math.sin(ph - 0.4);
   const u = hero.userData;
-  const stride = 0.78; // big elegant step
+  const stride = 0.7;
   u.legs.forEach((l, i) => {
-    const side = i ? 1 : -1;
-    // Thigh swings forward/back in sagittal plane
-    l.rotation.x = side * wc * stride;
-    l.rotation.z = 0;
-    // Knee only bends "backward" (foot toward butt) — never forward
-    // When this thigh is forward (swing), fold shin; when rear, nearly straight
-    const swing = Math.max(0, side * wc); // 0..1 while this leg is forward
-    if (l.userData.shin) l.userData.shin.rotation.x = -0.12 - swing * 0.7;
+    const phase = ph + (i === 0 ? Math.PI : 0);
+    const thigh = Math.sin(phase) * stride;
+    // Profile walk: rotate around Z so legs move in the screen plane
+    l.rotation.set(0, 0, thigh);
+    // Knee folds so shin tucks behind thigh (positive Z matched visual test z_pos)
+    const flex = Math.max(0, -Math.cos(phase));
+    if (l.userData.shin) l.userData.shin.rotation.set(0, 0, 0.2 + flex * 0.75);
   });
   const bob = Math.sin(ph * 2);
   u.body.position.y = bob * bob * 0.028;
