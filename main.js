@@ -853,14 +853,13 @@ function update(dt) {
   const stride = 0.78; // big elegant step
   u.legs.forEach((l, i) => {
     const side = i ? 1 : -1;
-    // slight ease-in-out on thigh
-    const ang = side * wc * stride;
-    l.rotation.x = ang;
-    l.rotation.z = side * wc * 0.04;
-    // knee folds on swing (shin bends the anatomical way)
-    const swing = Math.max(0, side * wc);
-    const rear = Math.max(0, -side * wc);
-    if (l.userData.shin) l.userData.shin.rotation.x = swing * 0.72 - rear * 0.08;
+    // Thigh swings forward/back in sagittal plane
+    l.rotation.x = side * wc * stride;
+    l.rotation.z = 0;
+    // Knee only bends "backward" (foot toward butt) — never forward
+    // When this thigh is forward (swing), fold shin; when rear, nearly straight
+    const swing = Math.max(0, side * wc); // 0..1 while this leg is forward
+    if (l.userData.shin) l.userData.shin.rotation.x = -0.12 - swing * 0.7;
   });
   const bob = Math.sin(ph * 2);
   u.body.position.y = bob * bob * 0.028;
