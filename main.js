@@ -561,7 +561,7 @@ const kids = [];
   scene.add(k);
   Object.assign(k.userData, {
     season: name, blob: blob(1, pathCZ(1), 0.38, 1.1), heading: Math.PI / 2,
-    walkPh: 0, w: { walk: 1, sit: 0, look: 0 }, act: 'walk', speed: 0.62,
+    walkPh: 0, w: { walk: 1, sit: 0, look: 0 }, act: 'walk', speed: 0.95,
   });
   if (d.umbrella) {
     const g = new THREE.Group();
@@ -778,8 +778,15 @@ function setWeather(name, instant = false) {
     k.userData.blob.visible = on;
     if (on) {
       hero = k;
-      if (instant || hero.position.x > WALK_X1 - 5 || hero.position.x < WALK_X0) {
-        hero.position.x = WALK_X0 + 2; hero.position.z = pathCZ(hero.position.x);
+      // Start on the left of frame; walk into center while camera lags
+      const startX = (instant ? WALK_X0 + 2 : camera.position.x - 4.2);
+      hero.position.x = Math.max(WALK_X0, Math.min(WALK_X1 - 10, startX));
+      hero.position.z = pathCZ(hero.position.x);
+      if (!instant) {
+        // Keep camera where it is so hero appears left and walks to center
+      } else {
+        camera.position.x = hero.position.x - 4.5;
+        controls.target.x = hero.position.x - 3.8;
       }
     }
   }
@@ -894,14 +901,14 @@ function update(dt) {
     const flap = Math.sin(simTime * 9 + uu.ph * 3) * 0.9; uu.L.rotation.z = flap; uu.R.rotation.z = -flap;
   }
 
-  // camera side-scroll follow — hero lower-left/center
-  const desiredCamX = hero.position.x + 3.2;
+  // camera side-scroll follow — lag behind so hero walks into center
+  const desiredCamX = hero.position.x;
   const desiredCamY = 2.35;
   const desiredCamZ = 9.2;
-  const desiredTgtX = hero.position.x + 3.8;
+  const desiredTgtX = hero.position.x;
   const desiredTgtY = 1.05;
   const desiredTgtZ = 0.0;
-  const ck = 1 - Math.exp(-dt * 3.2);
+  const ck = 1 - Math.exp(-dt * 1.15); // slower than hero
   camera.position.x += (desiredCamX - camera.position.x) * ck;
   camera.position.y += (desiredCamY - camera.position.y) * ck;
   camera.position.z += (desiredCamZ - camera.position.z) * ck;
