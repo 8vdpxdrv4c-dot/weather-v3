@@ -472,16 +472,20 @@ function makeKid(o) {
   const body = new THREE.Group(); k.add(body);
   const legCol = o.legs || JEANS;
   const legs = [];
+  // Two-bone lankier chibi legs (~+40% length); hip higher so feet stay on ground
+  const thighLen = 0.22, shinLen = 0.19, hipY = 0.48;
   for (const sx of [-1, 1]) {
-    const nBefore = body.children.length;
-    const leg = cap(0.068, 0.2, legCol); leg.position.set(sx * 0.08, 0.2, 0); body.add(leg);
-    const shoe = sph(0.09, o.shoes); shoe.scale.set(0.9, 0.6, 1.35); shoe.position.set(sx * 0.085, 0.045, 0.035); body.add(shoe);
-    const sole = sph(0.09, 0xffffff); sole.scale.set(0.92, 0.25, 1.37); sole.position.set(sx * 0.085, 0.02, 0.035); body.add(sole);
-    const piv = new THREE.Group(); piv.position.set(sx * 0.08, 0.32, 0);
-    for (const c of body.children.slice(nBefore)) { c.position.x -= sx * 0.08; c.position.y -= 0.32; piv.add(c); }
-    body.add(piv); legs.push(piv);
+    const thighCol = o.shorts ? o.shorts : legCol;
+    const shinCol = o.shorts ? SKIN : legCol;
+    const piv = new THREE.Group(); piv.position.set(sx * 0.085, hipY, 0);
+    const thigh = cap(0.07, thighLen - 0.06, thighCol); thigh.position.y = -thighLen * 0.5; piv.add(thigh);
+    const shinPiv = new THREE.Group(); shinPiv.position.y = -thighLen; piv.add(shinPiv);
+    const shin = cap(0.062, shinLen - 0.05, shinCol); shin.position.y = -shinLen * 0.5; shinPiv.add(shin);
+    const shoe = sph(0.09, o.shoes); shoe.scale.set(0.9, 0.6, 1.35); shoe.position.set(0, -shinLen + 0.02, 0.035); shinPiv.add(shoe);
+    const sole = sph(0.09, 0xffffff); sole.scale.set(0.92, 0.25, 1.37); sole.position.set(0, -shinLen - 0.005, 0.035); shinPiv.add(sole);
+    piv.userData = { thigh, shin: shinPiv }; body.add(piv); legs.push(piv);
   }
-  const torso = new THREE.Group(); torso.position.y = 0.36; body.add(torso);
+  const torso = new THREE.Group(); torso.position.y = 0.52; body.add(torso);
   const tors = cap(0.165, 0.16, o.shirt); tors.scale.set(1, 1, 0.82); tors.position.y = 0.17; torso.add(tors);
   if (o.vest) {
     const vest = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.32, 0.22), M(o.vest)); vest.position.set(0, 0.18, 0.02); torso.add(vest);
@@ -508,7 +512,7 @@ function makeKid(o) {
     piv.rotation.z = sx * 0.35; piv.rotation.x = 0;
     piv.userData = { base: piv.rotation.z, baseX: piv.rotation.x, sx }; arms.push(piv);
   }
-  const head = new THREE.Group(); head.position.y = 0.95; body.add(head);
+  const head = new THREE.Group(); head.position.y = 1.11; body.add(head);
   const skull = sph(0.27, SKIN, 40, 28); skull.scale.set(1.02, 0.95, 0.95); head.add(skull);
   const onHead = (lat, lon, r = 0.27) => new THREE.Vector3(Math.sin(lon) * Math.cos(lat) * r * 1.02, Math.sin(lat) * r * 0.95, Math.cos(lon) * Math.cos(lat) * r * 0.95);
   for (const sx of [-1, 1]) {
@@ -557,7 +561,7 @@ const kids = [];
   scene.add(k);
   Object.assign(k.userData, {
     season: name, blob: blob(1, pathCZ(1), 0.38, 1.1), heading: Math.PI / 2,
-    walkPh: 0, w: { walk: 1, sit: 0, look: 0 }, act: 'walk', speed: 1.15,
+    walkPh: 0, w: { walk: 1, sit: 0, look: 0 }, act: 'walk', speed: 1.22,
   });
   if (d.umbrella) {
     const g = new THREE.Group();
@@ -832,19 +836,32 @@ function update(dt) {
   hero.userData.heading = Math.PI / 2;
   hero.rotation.y = hero.userData.heading;
   hero.userData.blob.position.set(hero.position.x, hgt(hero.position.x, hero.position.z) + 0.03, hero.position.z + 0.05);
-  hero.userData.walkPh += dt * hero.userData.speed * 10;
-  const wc = Math.sin(hero.userData.walkPh), ww = 1;
+  hero.userData.walkPh += dt * hero.userData.speed * 11.5;
+  const ph = hero.userData.walkPh;
+  const wc = Math.sin(ph), ww = 1;
+  const armW = Math.sin(ph - 0.28); // arms slightly delayed vs legs
   const u = hero.userData;
-  u.legs.forEach((l, i) => { l.rotation.x = (i ? 1 : -1) * wc * 0.5 * ww; l.rotation.z = 0; });
-  u.body.position.y = Math.abs(Math.cos(u.walkPh)) * 0.014 * ww;
-  u.torso.scale.y = 1 + Math.sin(simTime * 1.6 + u.ph) * 0.012; u.torso.rotation.x = 0;
-  u.head.rotation.x = 0; u.head.rotation.z = Math.sin(simTime * 0.6 + u.ph) * 0.03; u.head.position.set(0, 0.95, 0);
+  const stride = 0.82; // thigh peak ~0.7–0.9 rad
+  u.legs.forEach((l, i) => {
+    const side = i ? 1 : -1; // clear opposite L/R phase
+    const thighAng = side * wc * stride * ww;
+    l.rotation.x = thighAng; l.rotation.z = 0;
+    // Knee folds on swing leg when thigh is forward/up
+    const forward = Math.max(0, side * wc);
+    if (l.userData.shin) l.userData.shin.rotation.x = -forward * 0.95 * ww;
+  });
+  // Double-frequency step bob
+  u.body.position.y = Math.abs(Math.sin(ph * 2)) * 0.03 * ww;
+  u.torso.scale.y = 1 + Math.sin(simTime * 1.6 + u.ph) * 0.012;
+  u.torso.rotation.x = 0.1; // subtle forward lean
+  u.torso.rotation.y = -wc * 0.07 * ww; // shoulder/torso yaw swagger
+  u.head.rotation.x = -0.04; u.head.rotation.z = Math.sin(simTime * 0.6 + u.ph) * 0.03; u.head.position.set(0, 1.11, 0);
   u.arms.forEach((a, i) => {
     const sx = a.userData.sx;
     if (u.umb && i === 1) { a.rotation.z = 2.6; a.rotation.x = -0.15; }
-    else { a.rotation.z = sx * 0.3; a.rotation.x = (i ? -1 : 1) * wc * 0.42 * ww; }
+    else { a.rotation.z = sx * 0.3; a.rotation.x = (i ? -1 : 1) * armW * 0.55 * ww; }
   });
-  if (u.umb) { u.umb.g.visible = true; u.umb.g.position.set(0.1, 0.88 + u.body.position.y, 0); u.umb.can.scale.set(1, 1, 1); }
+  if (u.umb) { u.umb.g.visible = true; u.umb.g.position.set(0.1, 1.04 + u.body.position.y, 0); u.umb.can.scale.set(1, 1, 1); }
 
   kids.forEach((kd, i) => {
     if (!kd.position) return;
