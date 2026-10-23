@@ -857,10 +857,10 @@ function update(dt) {
     const ang = side * wc * stride;
     l.rotation.x = ang;
     l.rotation.z = side * wc * 0.04;
-    // knee opens on rear leg, folds gently on forward swing
+    // knee folds on swing (shin bends the anatomical way)
     const swing = Math.max(0, side * wc);
     const rear = Math.max(0, -side * wc);
-    if (l.userData.shin) l.userData.shin.rotation.x = -swing * 0.72 + rear * 0.08;
+    if (l.userData.shin) l.userData.shin.rotation.x = swing * 0.72 - rear * 0.08;
   });
   const bob = Math.sin(ph * 2);
   u.body.position.y = bob * bob * 0.028;
