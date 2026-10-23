@@ -561,7 +561,7 @@ const kids = [];
   scene.add(k);
   Object.assign(k.userData, {
     season: name, blob: blob(1, pathCZ(1), 0.38, 1.1), heading: Math.PI / 2,
-    walkPh: 0, w: { walk: 1, sit: 0, look: 0 }, act: 'walk', speed: 1.22,
+    walkPh: 0, w: { walk: 1, sit: 0, look: 0 }, act: 'walk', speed: 0.62,
   });
   if (d.umbrella) {
     const g = new THREE.Group();
@@ -836,30 +836,34 @@ function update(dt) {
   hero.userData.heading = Math.PI / 2;
   hero.rotation.y = hero.userData.heading;
   hero.userData.blob.position.set(hero.position.x, hgt(hero.position.x, hero.position.z) + 0.03, hero.position.z + 0.05);
-  hero.userData.walkPh += dt * hero.userData.speed * 11.5;
+  // Slow graceful cadence (decoupled from travel speed)
+  hero.userData.walkPh += dt * 5.8;
   const ph = hero.userData.walkPh;
-  const wc = Math.sin(ph), ww = 1;
-  const armW = Math.sin(ph - 0.28); // arms slightly delayed vs legs
+  const wc = Math.sin(ph);
+  const armW = Math.sin(ph - 0.35);
   const u = hero.userData;
-  const stride = 0.82; // thigh peak ~0.7–0.9 rad
+  const stride = 0.48; // softer, prettier stride
   u.legs.forEach((l, i) => {
-    const side = i ? 1 : -1; // clear opposite L/R phase
-    const thighAng = side * wc * stride * ww;
-    l.rotation.x = thighAng; l.rotation.z = 0;
-    // Knee folds on swing leg when thigh is forward/up
-    const forward = Math.max(0, side * wc);
-    if (l.userData.shin) l.userData.shin.rotation.x = -forward * 0.95 * ww;
+    const side = i ? 1 : -1;
+    l.rotation.x = side * wc * stride;
+    l.rotation.z = 0;
+    // Gentle knee bend only on the swinging forward half
+    const swing = Math.max(0, side * wc);
+    if (l.userData.shin) l.userData.shin.rotation.x = -swing * 0.55;
   });
-  // Double-frequency step bob
-  u.body.position.y = Math.abs(Math.sin(ph * 2)) * 0.03 * ww;
-  u.torso.scale.y = 1 + Math.sin(simTime * 1.6 + u.ph) * 0.012;
-  u.torso.rotation.x = 0.1; // subtle forward lean
-  u.torso.rotation.y = -wc * 0.07 * ww; // shoulder/torso yaw swagger
-  u.head.rotation.x = -0.04; u.head.rotation.z = Math.sin(simTime * 0.6 + u.ph) * 0.03; u.head.position.set(0, 1.11, 0);
+  // Soft double-step bob
+  const bob = Math.sin(ph * 2);
+  u.body.position.y = bob * bob * 0.018;
+  u.torso.scale.y = 1 + Math.sin(simTime * 1.2 + u.ph) * 0.008;
+  u.torso.rotation.x = 0.05;
+  u.torso.rotation.y = -wc * 0.035;
+  u.head.rotation.x = -0.02;
+  u.head.rotation.z = Math.sin(simTime * 0.5 + u.ph) * 0.02;
+  u.head.position.set(0, 1.11, 0);
   u.arms.forEach((a, i) => {
     const sx = a.userData.sx;
-    if (u.umb && i === 1) { a.rotation.z = 2.6; a.rotation.x = -0.15; }
-    else { a.rotation.z = sx * 0.3; a.rotation.x = (i ? -1 : 1) * armW * 0.55 * ww; }
+    if (u.umb && i === 1) { a.rotation.z = 2.6; a.rotation.x = -0.12; }
+    else { a.rotation.z = sx * 0.28; a.rotation.x = (i ? -1 : 1) * armW * 0.32; }
   });
   if (u.umb) { u.umb.g.visible = true; u.umb.g.position.set(0.1, 1.04 + u.body.position.y, 0); u.umb.can.scale.set(1, 1, 1); }
 
