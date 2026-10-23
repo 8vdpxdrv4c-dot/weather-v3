@@ -473,7 +473,7 @@ function makeKid(o) {
   const legCol = o.legs || JEANS;
   const legs = [];
   // Two-bone lankier chibi legs (~+40% length); hip higher so feet stay on ground
-  const thighLen = 0.22, shinLen = 0.19, hipY = 0.48;
+  const thighLen = 0.30, shinLen = 0.26, hipY = 0.62;
   for (const sx of [-1, 1]) {
     const thighCol = o.shorts ? o.shorts : legCol;
     const shinCol = o.shorts ? SKIN : legCol;
@@ -485,7 +485,7 @@ function makeKid(o) {
     const sole = sph(0.09, 0xffffff); sole.scale.set(0.92, 0.25, 1.37); sole.position.set(0, -shinLen - 0.005, 0.035); shinPiv.add(sole);
     piv.userData = { thigh, shin: shinPiv }; body.add(piv); legs.push(piv);
   }
-  const torso = new THREE.Group(); torso.position.y = 0.52; body.add(torso);
+  const torso = new THREE.Group(); torso.position.y = 0.68; body.add(torso);
   const tors = cap(0.165, 0.16, o.shirt); tors.scale.set(1, 1, 0.82); tors.position.y = 0.17; torso.add(tors);
   if (o.vest) {
     const vest = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.32, 0.22), M(o.vest)); vest.position.set(0, 0.18, 0.02); torso.add(vest);
@@ -512,7 +512,7 @@ function makeKid(o) {
     piv.rotation.z = sx * 0.35; piv.rotation.x = 0;
     piv.userData = { base: piv.rotation.z, baseX: piv.rotation.x, sx }; arms.push(piv);
   }
-  const head = new THREE.Group(); head.position.y = 1.11; body.add(head);
+  const head = new THREE.Group(); head.position.y = 1.32; body.add(head);
   const skull = sph(0.27, SKIN, 40, 28); skull.scale.set(1.02, 0.95, 0.95); head.add(skull);
   const onHead = (lat, lon, r = 0.27) => new THREE.Vector3(Math.sin(lon) * Math.cos(lat) * r * 1.02, Math.sin(lat) * r * 0.95, Math.cos(lon) * Math.cos(lat) * r * 0.95);
   for (const sx of [-1, 1]) {
@@ -556,12 +556,12 @@ const kids = [];
   const k = makeKid(d);
   k.position.set(1 + i * 0.01, 0, pathCZ(1));
   k.rotation.y = Math.PI / 2;
-  k.scale.setScalar(1.22);
+  k.scale.setScalar(1.68);
   k.visible = name === 'spring';
   scene.add(k);
   Object.assign(k.userData, {
     season: name, blob: blob(1, pathCZ(1), 0.38, 1.1), heading: Math.PI / 2,
-    walkPh: 0, w: { walk: 1, sit: 0, look: 0 }, act: 'walk', speed: 0.95,
+    walkPh: 0, w: { walk: 1, sit: 0, look: 0 }, act: 'walk', speed: 1.05,
   });
   if (d.umbrella) {
     const g = new THREE.Group();
@@ -843,36 +843,39 @@ function update(dt) {
   hero.userData.heading = Math.PI / 2;
   hero.rotation.y = hero.userData.heading;
   hero.userData.blob.position.set(hero.position.x, hgt(hero.position.x, hero.position.z) + 0.03, hero.position.z + 0.05);
-  // Slow graceful cadence (decoupled from travel speed)
-  hero.userData.walkPh += dt * 5.8;
+  // Elegant large strides: slow cadence, long reach
+  hero.userData.walkPh += dt * 4.2;
   const ph = hero.userData.walkPh;
+  // ease sine for smoother weight transfer
   const wc = Math.sin(ph);
-  const armW = Math.sin(ph - 0.35);
+  const armW = Math.sin(ph - 0.4);
   const u = hero.userData;
-  const stride = 0.48; // softer, prettier stride
+  const stride = 0.78; // big elegant step
   u.legs.forEach((l, i) => {
     const side = i ? 1 : -1;
-    l.rotation.x = side * wc * stride;
-    l.rotation.z = 0;
-    // Gentle knee bend only on the swinging forward half
+    // slight ease-in-out on thigh
+    const ang = side * wc * stride;
+    l.rotation.x = ang;
+    l.rotation.z = side * wc * 0.04;
+    // knee opens on rear leg, folds gently on forward swing
     const swing = Math.max(0, side * wc);
-    if (l.userData.shin) l.userData.shin.rotation.x = -swing * 0.55;
+    const rear = Math.max(0, -side * wc);
+    if (l.userData.shin) l.userData.shin.rotation.x = -swing * 0.72 + rear * 0.08;
   });
-  // Soft double-step bob
   const bob = Math.sin(ph * 2);
-  u.body.position.y = bob * bob * 0.018;
-  u.torso.scale.y = 1 + Math.sin(simTime * 1.2 + u.ph) * 0.008;
-  u.torso.rotation.x = 0.05;
-  u.torso.rotation.y = -wc * 0.035;
-  u.head.rotation.x = -0.02;
-  u.head.rotation.z = Math.sin(simTime * 0.5 + u.ph) * 0.02;
-  u.head.position.set(0, 1.11, 0);
+  u.body.position.y = bob * bob * 0.028;
+  u.torso.scale.y = 1 + Math.sin(simTime * 1.0 + u.ph) * 0.006;
+  u.torso.rotation.x = 0.06;
+  u.torso.rotation.y = -wc * 0.05;
+  u.head.rotation.x = -0.025;
+  u.head.rotation.z = Math.sin(simTime * 0.45 + u.ph) * 0.018;
+  u.head.position.set(0, 1.32, 0);
   u.arms.forEach((a, i) => {
     const sx = a.userData.sx;
-    if (u.umb && i === 1) { a.rotation.z = 2.6; a.rotation.x = -0.12; }
-    else { a.rotation.z = sx * 0.28; a.rotation.x = (i ? -1 : 1) * armW * 0.32; }
+    if (u.umb && i === 1) { a.rotation.z = 2.55; a.rotation.x = -0.1; }
+    else { a.rotation.z = sx * 0.22; a.rotation.x = (i ? -1 : 1) * armW * 0.45; }
   });
-  if (u.umb) { u.umb.g.visible = true; u.umb.g.position.set(0.1, 1.04 + u.body.position.y, 0); u.umb.can.scale.set(1, 1, 1); }
+  if (u.umb) { u.umb.g.visible = true; u.umb.g.position.set(0.12, 1.28 + u.body.position.y, 0); u.umb.can.scale.set(1, 1, 1); }
 
   kids.forEach((kd, i) => {
     if (!kd.position) return;
@@ -903,10 +906,10 @@ function update(dt) {
 
   // camera side-scroll follow — lag behind so hero walks into center
   const desiredCamX = hero.position.x;
-  const desiredCamY = 2.35;
-  const desiredCamZ = 9.2;
+  const desiredCamY = 2.55;
+  const desiredCamZ = 10.4;
   const desiredTgtX = hero.position.x;
-  const desiredTgtY = 1.05;
+  const desiredTgtY = 1.25;
   const desiredTgtZ = 0.0;
   const ck = 1 - Math.exp(-dt * 1.15); // slower than hero
   camera.position.x += (desiredCamX - camera.position.x) * ck;
