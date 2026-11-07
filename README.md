@@ -13,7 +13,7 @@ Open `index.html` via any static server (e.g. `python3 -m http.server` in this f
 ~2 s smooth transitions between seasons. Season badge (top-left) + 4-segment progress (top-right) match the reference UI.
 
 ## Walk + camera
-One hero walker per season (procedural chibi, outfits matching refs) walks continuously **left → right** along a long dirt path, then teleports back left when off-screen. Camera side-scrolls with a smooth X lerp so the hero stays roughly lower-left/center. Orbit drag/zoom disabled. Hint: 「点击切换季节」.
+Two egg walkers (milky yellow and pink) stroll side by side **left → right** along the dirt path, then teleport back left when off-screen. Short limbs, a light bounce, and a foot-planted gait with a small phase offset. The camera side-scrolls with a smooth follow so both stay in frame. Orbit drag/zoom disabled. Hint: 「点击切换季节」. Spring still carries the striped umbrella.
 
 ## Tech notes
 - Rain: 14k instanced streaks; snow: 10k GPU flakes; autumn leaves: flat recolored particles; wind ribbons for summer/autumn.

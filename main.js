@@ -460,127 +460,217 @@ for (let i = 0; i < 14; i++) {
   makePine(x + rr(-2, 2), rr(-14, -8), rr(0.85, 1.3));
 }
 [...treeGroups.blossom, ...treeGroups.autumn, ...treeGroups.palm, ...treeGroups.pine].forEach(g => { g.visible = false; });
-// ---------- kids / hero walkers ----------
-const SKIN = 0xffd9c2, HAIR = 0x6b3e20, JEANS = 0x6e9ad6;
-const lam = (c) => new THREE.MeshLambertMaterial({ color: c });
+// ---------- egg pair (cream + pink), short limbs, foot-planted gait ----------
+const lam = (c, o) => new THREE.MeshLambertMaterial(Object.assign({ color: c }, o));
 const mats = {}; const M = (c) => (mats[c] ||= lam(c));
-const sph = (r, c, ws = 24, hs = 16) => new THREE.Mesh(new THREE.SphereGeometry(r, ws, hs), M(c));
-const cap = (r, l, c) => new THREE.Mesh(new THREE.CapsuleGeometry(r, l, 6, 14), M(c));
-
-function makeKid(o) {
-  const k = new THREE.Group();
-  const body = new THREE.Group(); k.add(body);
-  const legCol = o.legs || JEANS;
+const EGG_R = 0.5, EGG_CY = 0.86, SCALE = 1.48;
+const HIP_Y = 0.286, HIP_SEP = 0.12, L1 = 0.175, L2 = 0.165, FOOT_DROP = 0.034;
+const REACH_L = 0.09, BOB = 0.034;
+const STEP_W = REACH_L * 2 * SCALE, STRIDE_W = STEP_W * 2, LIFT_W = 0.048, SPEED = 0.9;
+const YAW = Math.PI / 2;
+function makeEggGeo(r) {
+  const g = new THREE.SphereGeometry(r, 32, 24);
+  const p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    let x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+    const ny = y / r;
+    const widen = 1.07 - 0.22 * Math.max(0, ny) + 0.07 * Math.max(0, -ny);
+    x *= widen; z *= widen * 0.94; y *= 1.18;
+    p.setXYZ(i, x, y, z);
+  }
+  g.computeVertexNormals();
+  return g;
+}
+function smileGeo() {
+  const s = new THREE.Shape();
+  s.absarc(0, 0, 0.092, Math.PI * 1.12, Math.PI * 1.88, false);
+  s.absarc(0, 0.01, 0.064, Math.PI * 1.88, Math.PI * 1.12, true);
+  return new THREE.ShapeGeometry(s, 18);
+}
+function eggSurface(lat, lon) {
+  let x = Math.sin(lon) * Math.cos(lat) * EGG_R;
+  let y = Math.sin(lat) * EGG_R;
+  let z = Math.cos(lon) * Math.cos(lat) * EGG_R;
+  const ny = y / EGG_R;
+  const widen = 1.07 - 0.22 * Math.max(0, ny) + 0.07 * Math.max(0, -ny);
+  x *= widen; z *= widen * 0.94; y = y * 1.18 + EGG_CY;
+  return new THREE.Vector3(x, y, z);
+}
+function orientOut(obj, lat, lon, push = 0.016) {
+  const p = eggSurface(lat, lon);
+  const n = p.clone().sub(new THREE.Vector3(0, EGG_CY, 0)).normalize();
+  obj.position.copy(p).addScaledVector(n, push);
+  obj.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), n);
+}
+const eggGeo = makeEggGeo(EGG_R);
+const geo = {
+  eyeW: new THREE.SphereGeometry(0.09, 18, 14),
+  pupil: new THREE.SphereGeometry(0.052, 14, 10),
+  glint: new THREE.SphereGeometry(0.022, 8, 6),
+  blush: new THREE.CircleGeometry(0.078, 20),
+  smile: smileGeo(),
+  thigh: new THREE.CapsuleGeometry(0.058, 0.062, 4, 10),
+  shin: new THREE.CapsuleGeometry(0.05, 0.068, 4, 10),
+  foot: new THREE.SphereGeometry(0.07, 14, 12),
+  arm: new THREE.CapsuleGeometry(0.048, 0.03, 3, 8),
+  hand: new THREE.SphereGeometry(0.055, 12, 10),
+  tuft: new THREE.SphereGeometry(0.048, 10, 8),
+  lobe: new THREE.SphereGeometry(0.072, 12, 10),
+  knot: new THREE.SphereGeometry(0.034, 10, 8),
+};
+const blushMat = {
+  cream: new THREE.MeshBasicMaterial({ color: 0xff8a9b, transparent: true, opacity: 0.72, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4 }),
+  pink: new THREE.MeshBasicMaterial({ color: 0xe44568, transparent: true, opacity: 0.55, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4 }),
+};
+const glintMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+const mouthMat = M(0xd4536a);
+function addEye(parent, lat, lon) {
+  const g = new THREE.Group();
+  const white = new THREE.Mesh(geo.eyeW, M(0xfffdf8)); white.scale.set(1.02, 1.16, 0.3);
+  const pupil = new THREE.Mesh(geo.pupil, M(0x3a2926)); pupil.position.z = 0.055; pupil.scale.set(0.92, 1.05, 0.45);
+  const glint = new THREE.Mesh(geo.glint, glintMat); glint.position.set(-0.028, 0.038, 0.095); glint.scale.setScalar(1);
+  const glint2 = new THREE.Mesh(geo.glint, glintMat); glint2.position.set(0.03, -0.02, 0.09); glint2.scale.setScalar(0.45);
+  g.add(white, pupil, glint, glint2);
+  orientOut(g, lat, lon, 0.02);
+  parent.add(g);
+}
+function addBlush(parent, lat, lon, key) {
+  const m = new THREE.Mesh(geo.blush, blushMat[key]);
+  m.scale.set(1.2, 0.78, 1);
+  orientOut(m, lat, lon, 0.012);
+  parent.add(m);
+}
+function addSmile(parent) {
+  const m = new THREE.Mesh(geo.smile, mouthMat);
+  orientOut(m, -0.34, -0.22, 0.014);
+  parent.add(m);
+}
+function solveLeg(tz, ty, out) {
+  const dist = Math.hypot(tz, ty) || 1e-8;
+  const maxL = (L1 + L2) * 0.998;
+  const minL = Math.abs(L1 - L2) + 1e-4;
+  const d = Math.min(Math.max(dist, minL), maxL);
+  const ux = tz / dist, uy = ty / dist;
+  const tx = ux * d, ty2 = uy * d;
+  const a = (L1 * L1 - L2 * L2 + d * d) / (2 * d);
+  const h = Math.sqrt(Math.max(0, L1 * L1 - a * a));
+  let best = null;
+  for (const sgn of [1, -1]) {
+    const px = -uy * sgn, py = ux * sgn;
+    const kz = ux * a + px * h, ky = uy * a + py * h;
+    const thigh = Math.atan2(-kz, -ky);
+    let shin = Math.atan2(-(tx - kz), -(ty2 - ky)) - thigh;
+    if (shin > Math.PI) shin -= Math.PI * 2; else if (shin < -Math.PI) shin += Math.PI * 2;
+    const lineZ = tx * (a / Math.max(d, 1e-6));
+    const behind = lineZ - kz;
+    if (!best || behind > best.behind) best = { thigh, shin, behind };
+  }
+  out.thigh = best.thigh; out.shin = best.shin; out.behind = best.behind;
+}
+function makeEgg(o) {
+  const root = new THREE.Group();
+  root.scale.setScalar(SCALE);
+  const body = new THREE.Group(); root.add(body);
+  const squash = new THREE.Group(); body.add(squash);
+  const shell = new THREE.Mesh(eggGeo, lam(o.shell, { side: THREE.BackSide }));
+  shell.scale.setScalar(1.045); shell.position.y = EGG_CY; squash.add(shell);
+  const egg = new THREE.Mesh(eggGeo, M(o.body)); egg.position.y = EGG_CY; squash.add(egg);
+  // Face sits on the front, shifted toward the camera (-X local = +Z world at yaw π/2)
+  addEye(squash, 0.2, -0.34);
+  addEye(squash, 0.2, 0.16);
+  addBlush(squash, -0.08, -0.55, o.blush);
+  addBlush(squash, -0.1, 0.38, o.blush);
+  addSmile(squash);
+  if (o.tuft) {
+    for (let i = 0; i < 3; i++) {
+      const t = new THREE.Mesh(geo.tuft, M(o.tuft));
+      t.scale.set(0.72, 1.55, 0.72);
+      t.position.set((i - 1) * 0.05, EGG_CY + 0.64, 0.04);
+      t.rotation.z = (i - 1) * 0.42;
+      squash.add(t);
+    }
+  }
+  if (o.bow) {
+    const b = new THREE.Group();
+    for (const sx of [-1, 1]) {
+      const lobe = new THREE.Mesh(geo.lobe, M(o.bow));
+      lobe.scale.set(1.85, 0.32, 0.26);
+      lobe.position.set(sx * 0.07, 0, 0);
+      b.add(lobe);
+    }
+    b.add(new THREE.Mesh(geo.knot, M(0xffe08a)));
+    b.position.set(0.0, EGG_CY + 0.8, 0.04);
+    b.scale.setScalar(0.72);
+    b.rotation.set(-0.35, 0, 0.1);
+    squash.add(b);
+  }
   const legs = [];
-  // Two-bone lankier chibi legs (~+40% length); hip higher so feet stay on ground
-  const thighLen = 0.30, shinLen = 0.26, hipY = 0.62;
   for (const sx of [-1, 1]) {
-    const thighCol = o.shorts ? o.shorts : legCol;
-    const shinCol = o.shorts ? SKIN : legCol;
-    const piv = new THREE.Group(); piv.position.set(sx * 0.085, hipY, 0);
-    const thigh = cap(0.07, thighLen - 0.06, thighCol); thigh.position.y = -thighLen * 0.5; piv.add(thigh);
-    const shinPiv = new THREE.Group(); shinPiv.position.y = -thighLen; piv.add(shinPiv);
-    const shin = cap(0.062, shinLen - 0.05, shinCol); shin.position.y = -shinLen * 0.5; shinPiv.add(shin);
-    const shoe = sph(0.09, o.shoes); shoe.scale.set(0.9, 0.6, 1.35); shoe.position.set(0, -shinLen + 0.02, 0.04); shinPiv.add(shoe);
-    const sole = sph(0.09, 0xffffff); sole.scale.set(0.92, 0.25, 1.37); sole.position.set(0, -shinLen - 0.005, 0.04); shinPiv.add(sole);
-    piv.userData = { shin: shinPiv }; body.add(piv); legs.push(piv);
-  }
-  const torso = new THREE.Group(); torso.position.y = 0.68; body.add(torso);
-  const tors = cap(0.165, 0.16, o.shirt); tors.scale.set(1, 1, 0.82); tors.position.y = 0.17; torso.add(tors);
-  if (o.vest) {
-    const vest = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.32, 0.22), M(o.vest)); vest.position.set(0, 0.18, 0.02); torso.add(vest);
-  }
-  if (o.shorts) {
-    for (const sx of [-1, 1]) { const sh = cap(0.075, 0.06, o.shorts); sh.position.set(sx * 0.08, 0.02, 0); torso.add(sh); }
-  } else {
-    const hip = cap(0.168, 0.04, o.legs || JEANS); hip.scale.set(1, 1, 0.84); hip.position.y = 0.04; torso.add(hip);
-  }
-  if (o.collar) { const col = new THREE.Mesh(new THREE.TorusGeometry(0.085, 0.025, 8, 20), M(o.collar)); col.rotation.x = Math.PI / 2 - 0.25; col.position.set(0, 0.36, 0.02); torso.add(col); }
-  if (o.scarf) {
-    const sc = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.04, 8, 16), M(o.scarf)); sc.rotation.x = Math.PI / 2; sc.position.set(0, 0.38, 0.02); torso.add(sc);
-    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.45, 0.04), M(o.scarf)); tail.position.set(-0.05, 0.12, -0.16); tail.rotation.z = 0.35; torso.add(tail);
-  }
-  if (o.pack) {
-    const bp = cap(0.13, 0.1, o.pack); bp.scale.set(1.25, 1, 0.55); bp.position.set(0, 0.2, -0.17); torso.add(bp);
-    const flap = cap(0.1, 0.03, o.packFlap || 0xffffff); flap.scale.set(1.2, 1, 0.4); flap.position.set(0, 0.17, -0.225); torso.add(flap);
+    const piv = new THREE.Group(); piv.position.set(sx * HIP_SEP, HIP_Y, 0); body.add(piv);
+    const thigh = new THREE.Mesh(geo.thigh, M(o.limb)); thigh.position.y = -L1 * 0.5; piv.add(thigh);
+    const shinPiv = new THREE.Group(); shinPiv.position.y = -L1; piv.add(shinPiv);
+    const shin = new THREE.Mesh(geo.shin, M(o.limb)); shin.position.y = -L2 * 0.5; shinPiv.add(shin);
+    const foot = new THREE.Mesh(geo.foot, M(0xfff8f2));
+    foot.scale.set(1.08, 0.48, 1.4); foot.position.set(0, -L2 + FOOT_DROP, 0.016); shinPiv.add(foot);
+    const soleMesh = new THREE.Mesh(geo.foot, M(0xe8c9a8));
+    soleMesh.scale.set(1.02, 0.18, 1.32); soleMesh.position.set(0, -L2 + 0.01, 0.016); shinPiv.add(soleMesh);
+    const sole = new THREE.Object3D(); sole.position.set(0, -L2, 0); shinPiv.add(sole);
+    piv.userData = { shin: shinPiv, foot, sole, sx, ik: { thigh: 0, shin: 0, behind: 0 } };
+    legs.push(piv);
   }
   const arms = [];
   for (const sx of [-1, 1]) {
-    const piv = new THREE.Group(); piv.position.set(sx * 0.17, 0.31, 0); torso.add(piv);
-    const sleeve = cap(0.055, 0.17, o.sleeve || o.shirt); sleeve.position.y = -0.12; piv.add(sleeve);
-    const hand = sph(0.052, o.mitten || SKIN, 16, 12); hand.position.y = -0.25; piv.add(hand);
-    piv.rotation.z = sx * 0.35; piv.rotation.x = 0;
-    piv.userData = { base: piv.rotation.z, baseX: piv.rotation.x, sx }; arms.push(piv);
+    const piv = new THREE.Group(); piv.position.set(sx * 0.5, 0.62, 0.08); body.add(piv);
+    const arm = new THREE.Mesh(geo.arm, M(o.limb)); arm.position.y = -0.08; piv.add(arm);
+    const hand = new THREE.Mesh(geo.hand, M(o.limb)); hand.position.y = -0.17; piv.add(hand);
+    piv.userData = { sx, hand }; arms.push(piv);
   }
-  const head = new THREE.Group(); head.position.y = 1.32; body.add(head);
-  const skull = sph(0.27, SKIN, 40, 28); skull.scale.set(1.02, 0.95, 0.95); head.add(skull);
-  const onHead = (lat, lon, r = 0.27) => new THREE.Vector3(Math.sin(lon) * Math.cos(lat) * r * 1.02, Math.sin(lat) * r * 0.95, Math.cos(lon) * Math.cos(lat) * r * 0.95);
-  for (const sx of [-1, 1]) {
-    const eye = sph(0.036, 0x2a1a12, 16, 12); eye.position.copy(onHead(-0.08, sx * 0.36, 0.262)); eye.scale.set(0.9, 1.15, 0.5); eye.lookAt(eye.position.clone().multiplyScalar(2)); head.add(eye);
-    const hl = sph(0.012, 0xffffff, 8, 6); hl.position.copy(onHead(-0.04, sx * 0.36 + 0.035, 0.275)); head.add(hl);
-    const bl = new THREE.Mesh(new THREE.CircleGeometry(0.045, 20), new THREE.MeshBasicMaterial({ color: 0xff8fa0, transparent: true, opacity: 0.45, depthWrite: false }));
-    bl.position.copy(onHead(-0.25, sx * 0.58, 0.272)); bl.lookAt(bl.position.clone().multiplyScalar(2)); bl.scale.y = 0.75; head.add(bl);
-    const ear = sph(0.055, SKIN, 12, 10); ear.position.set(sx * 0.27, -0.02, 0); ear.scale.set(0.5, 1, 0.8); head.add(ear);
-  }
-  const mouth = new THREE.Mesh(new THREE.CircleGeometry(0.055, 20, Math.PI, Math.PI), M(0xc9384a)); mouth.position.copy(onHead(-0.3, 0, 0.27)); mouth.lookAt(mouth.position.clone().multiplyScalar(2)); mouth.position.multiplyScalar(1.005); head.add(mouth);
-  const hair = sph(0.292, o.hair || HAIR, 40, 28); hair.position.set(0, 0.05, -0.045); hair.scale.set(1.02, 0.97, 1); head.add(hair);
-  for (let i = -2; i <= 2; i++) { const b = sph(0.085, o.hair || HAIR, 16, 12); b.position.copy(onHead(0.74 - Math.abs(i) * 0.04, i * 0.3, 0.255)); b.scale.set(1.2, 0.6, 0.7); b.lookAt(b.position.clone().multiplyScalar(2)); head.add(b); }
-  if (o.boy) { const tuft = sph(0.06, o.hair || HAIR, 12, 10); tuft.position.set(0.02, 0.33, 0.02); tuft.scale.set(0.6, 1, 0.6); tuft.rotation.z = -0.4; head.add(tuft); }
-  if (o.ponytail) {
-    const pt = sph(0.1, o.hair || HAIR, 16, 12); pt.position.set(0, 0.05, -0.28); pt.scale.set(0.7, 0.9, 1.2); head.add(pt);
-    const tip = sph(0.07, o.hair || HAIR, 12, 10); tip.position.set(0, -0.08, -0.38); tip.scale.set(0.7, 1, 0.8); head.add(tip);
-  }
-  if (o.hat) {
-    const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.38, 0.04, 20), M(o.hat)); brim.position.y = 0.22; head.add(brim);
-    const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.24, 0.2, 16), M(o.hat)); crown.position.y = 0.34; head.add(crown);
-  }
-  if (o.beanie) {
-    const bn = sph(0.28, o.beanie, 24, 16); bn.position.set(0, 0.18, -0.02); bn.scale.set(1.05, 0.75, 1.05); head.add(bn);
-    const pom = sph(0.06, 0xffffff, 10, 8); pom.position.set(0, 0.38, -0.02); head.add(pom);
-  }
-  k.traverse(m => { if (m.isMesh && !m.material.transparent) m.castShadow = true; });
-  k.userData = { torso, head, arms, legs, body, ph: rnd() * 6 };
-  return k;
+  root.traverse(m => { if (m.isMesh && m.material && !m.material.transparent && m.material.side !== THREE.BackSide) m.castShadow = true; });
+  root.userData = { body, squash, arms, legs, name: o.name, holdUmbrella: !!o.umbrella };
+  return root;
 }
-
-const heroDefs = {
-  spring: { shirt: 0xffb0c8, sleeve: 0xffb0c8, legs: 0x5a8ad0, shoes: 0xf0f0f0, hair: 0x5a3820, ponytail: true, umbrella: true, umbA: 0xe04040, umbB: 0xffffff },
-  summer: { shirt: 0xffd84a, sleeve: 0xffd84a, shorts: 0x4a8ad8, legs: 0x4a8ad8, shoes: 0xffffff, hair: HAIR, boy: true, hat: 0xffd23a },
-  autumn: { shirt: 0x8a5a30, sleeve: 0x8a5a30, legs: 0x3a4a70, shoes: 0x6a4a30, hair: HAIR, boy: true, scarf: 0xffa020, pack: 0x3a9a8a, packFlap: 0x5cbcac },
-  winter: { shirt: 0x2a3a58, sleeve: 0x2a3a58, vest: 0x3a6ab0, legs: 0x2a3a58, shoes: 0x3a3a48, hair: HAIR, boy: true, beanie: 0xe04040, scarf: 0xe04040, mitten: 0xe04040 },
-};
-const heroes = {};
+function makeUmbrella() {
+  const g = new THREE.Group();
+  const tex = canvasTex(128, 8, (c) => { for (let i = 0; i < 8; i++) { c.fillStyle = i % 2 ? '#fff6f2' : '#e23b4a'; c.fillRect(i * 16, 0, 16, 8); } });
+  const can = new THREE.Group(); can.position.y = 1.05; g.add(can);
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(0.58, 28, 12, 0, Math.PI * 2, 0, Math.PI / 2.15), new THREE.MeshLambertMaterial({ map: tex, side: THREE.DoubleSide }));
+  dome.scale.y = 0.5; can.add(dome);
+  const tip = new THREE.Mesh(new THREE.SphereGeometry(0.038, 8, 6), M(0xfff8f2)); tip.position.y = 0.28; can.add(tip);
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 1.05, 6), M(0x8a5a3a)); shaft.position.y = 0.48; g.add(shaft);
+  const handle = new THREE.Mesh(new THREE.TorusGeometry(0.045, 0.014, 6, 12, Math.PI), M(0x8a5a3a));
+  handle.rotation.z = Math.PI; handle.position.set(0.04, -0.08, 0); g.add(handle);
+  g.traverse(m => { if (m.isMesh) m.castShadow = true; });
+  g.position.set(0.02, -0.06, 0.02);
+  return g;
+}
+const eggDefs = [
+  { name: 'cream', body: 0xffe3a6, limb: 0xf6c56e, shell: 0xe8a44c, blush: 'cream', tuft: 0xf0a030, xOff: -0.82, lane: 0.5, phase: 0, umbrella: true },
+  { name: 'pink', body: 0xffb3c8, limb: 0xff8eae, shell: 0xe86b90, blush: 'pink', bow: 0xff5e8a, xOff: 0.82, lane: -0.48, phase: 0.2 * STRIDE_W, umbrella: false },
+];
+const eggs = [];
 const kids = [];
-['spring', 'summer', 'autumn', 'winter'].forEach((name, i) => {
-  const d = heroDefs[name];
-  const k = makeKid(d);
-  k.position.set(1 + i * 0.01, 0, pathCZ(1));
-  k.rotation.y = Math.PI / 2;
-  k.scale.setScalar(1.68);
-  k.visible = name === 'spring';
-  scene.add(k);
-  Object.assign(k.userData, {
-    season: name, blob: blob(1, pathCZ(1), 0.38, 1.1), heading: Math.PI / 2,
-    walkPh: 0, w: { walk: 1, sit: 0, look: 0 }, act: 'walk', speed: 1.05,
-  });
-  if (d.umbrella) {
-    const g = new THREE.Group();
-    const can = new THREE.Group(); can.position.y = 0.62; g.add(can);
-    const hex = '#' + new THREE.Color(d.umbA).getHexString(), light = '#' + new THREE.Color(d.umbB).getHexString();
-    const tex = canvasTex(128, 8, (c) => { for (let kk = 0; kk < 8; kk++) { c.fillStyle = kk % 2 ? light : hex; c.fillRect(kk * 16, 0, 16, 8); } });
-    const dome = new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 10, 0, Math.PI * 2, 0, Math.PI / 2.2), new THREE.MeshLambertMaterial({ map: tex, side: THREE.DoubleSide }));
-    dome.scale.y = 0.62; dome.position.y = -0.1; can.add(dome);
-    const tip = sph(0.03, 0xffffff, 8, 6); tip.position.y = 0.22; can.add(tip);
-    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.66, 6), M(0x8a6a50)); shaft.position.y = 0.31; g.add(shaft);
-    const handle = new THREE.Mesh(new THREE.TorusGeometry(0.04, 0.012, 6, 12, Math.PI), M(0x8a6a50)); handle.rotation.z = Math.PI; handle.position.set(0.04, 0, 0); g.add(handle);
-    g.traverse(m => { if (m.isMesh) m.castShadow = true; });
-    g.position.set(0.12, 0.88, 0); k.add(g); k.userData.umb = { g, can };
+let umbrella = null;
+for (const o of eggDefs) {
+  const e = makeEgg(o);
+  e.rotation.y = YAW;
+  scene.add(e);
+  const sh = blob(o.xOff, pathCZ(o.xOff) + o.lane, 0.5, 1.05);
+  Object.assign(e.userData, { xOff: o.xOff, lane: o.lane, gait: o.phase, blob: sh });
+  if (o.umbrella) {
+    umbrella = makeUmbrella();
+    const holdArm = e.userData.arms.find(a => a.userData.sx < 0);
+    holdArm.userData.hand.add(umbrella);
+    e.userData.umb = umbrella;
   }
-  heroes[name] = k; kids.push(k);
-});
-while (kids.length < 5) kids.push({ position: { x: 99, z: 99 }, userData: { w: {} }, visible: false });
-
-let hero = heroes.spring;
+  eggs.push(e); kids.push(e);
+}
+while (kids.length < 5) kids.push({ position: { x: 99, z: 99 }, visible: false });
+let pairX = 4;
+const _yAxis = new THREE.Vector3(0, 1, 0);
+const _up = new THREE.Vector3();
+const _q = new THREE.Quaternion();
+const heroes = { cream: eggs[0], pink: eggs[1] };
+let hero = eggs[0];
 const WALK_X0 = -2, WALK_X1 = 72;
 // ---------- butterflies ----------
 const wingTex = (a, b) => canvasTex(64, 64, (g) => { g.fillStyle = a; g.beginPath(); g.ellipse(32, 22, 26, 20, -0.3, 0, 7); g.fill(); g.beginPath(); g.ellipse(26, 46, 16, 14, 0.4, 0, 7); g.fill(); g.fillStyle = b; g.beginPath(); g.ellipse(36, 20, 12, 9, -0.3, 0, 7); g.fill(); });
@@ -767,29 +857,105 @@ function setTreesForSeason(name) {
   mountainGroup.visible = name === 'winter';
 }
 
+function wrap(a, n) { return ((a % n) + n) % n; }
+function camGoal() {
+  const aspect = camera.aspect;
+  const portrait = aspect < 0.9;
+  return {
+    x: pairX + (portrait ? 0.6 : 5.0),
+    y: portrait ? 5.2 : 3.35 + (aspect < 1.35 ? 0.4 : 0),
+    z: portrait ? 18.8 : 9.4 + (aspect < 1.35 ? 2.0 : 0),
+    tx: pairX, ty: 1.12, tz: 0,
+  };
+}
+function snapCamera() {
+  const cam = camGoal();
+  camera.position.set(cam.x, cam.y, cam.z);
+  controls.target.set(cam.tx, cam.ty, cam.tz);
+  controls.update();
+}
+function posePair(dt) {
+  if (dt > 0) {
+    pairX += SPEED * dt;
+    if (pairX > WALK_X1) pairX = WALK_X0;
+    for (const e of eggs) e.userData.gait += SPEED * dt;
+  }
+  const cy = Math.cos(YAW), sy = Math.sin(YAW);
+  const inv = 1 / SCALE;
+  for (const e of eggs) {
+    const u = e.userData;
+    const x = pairX + u.xOff;
+    const z = pathCZ(x) + u.lane;
+    e.position.set(x, hgt(x, z), z);
+    e.rotation.y = YAW;
+    const cycle = wrap(u.gait, STRIDE_W);
+    const p = cycle / STRIDE_W;
+    const bob = Math.sin(p * Math.PI * 2) ** 2 * BOB;
+    u.body.position.y = bob;
+    const squat = 1 - bob / BOB;
+    u.squash.scale.set(1 + squat * 0.035, 1 - squat * 0.05, 1 + squat * 0.035);
+    u.squash.rotation.y = -0.42;
+    u.squash.rotation.x = 0.04;
+    u.blob.position.set(x, hgt(x, z) + 0.03, z + 0.02);
+    u.legs.forEach((leg) => {
+      const sx = leg.userData.sx;
+      const reachW = STEP_W * 0.5;
+      const cyc = wrap(u.gait + (sx < 0 ? 0 : STRIDE_W * 0.5), STRIDE_W);
+      let fz, lift;
+      if (cyc < STEP_W) {
+        fz = x - cyc + reachW;
+        lift = 0;
+      } else {
+        const sT = (cyc - STEP_W) / STEP_W;
+        const ease = sT * sT * (3 - 2 * sT);
+        const f0 = x - cyc + reachW;
+        const f1 = x + (STRIDE_W - cyc) + reachW;
+        fz = f0 + (f1 - f0) * ease;
+        lift = Math.sin(sT * Math.PI) * LIFT_W;
+      }
+      const footZ = z - sx * HIP_SEP * SCALE;
+      const footY = hgt(fz, footZ) + lift;
+      const dx = (fz - x) * inv, dy = (footY - e.position.y) * inv, dz = (footZ - z) * inv;
+      const lz = dx * sy + dz * cy;
+      const py = dy - (HIP_Y + bob);
+      const ik = leg.userData.ik;
+      solveLeg(lz, py, ik);
+      leg.rotation.set(ik.thigh, 0, 0);
+      leg.userData.shin.rotation.set(ik.shin, 0, 0);
+      leg.userData.plant = { x: fz, y: footY, z: footZ, lift };
+    });
+    const hold = u.holdUmbrella && umbrella && umbrella.visible;
+    u.arms.forEach((arm) => {
+      const sx = arm.userData.sx;
+      if (hold && sx < 0) {
+        arm.rotation.set(-0.15, 0, -1.35);
+      } else {
+        // Same-side arm swings opposite the foot, staying beside the body.
+        const legP = wrap(u.gait + (sx < 0 ? 0 : STRIDE_W * 0.5), STRIDE_W) / STRIDE_W;
+        arm.rotation.set(Math.cos(legP * Math.PI * 2) * 0.5, 0, sx * 0.38);
+      }
+    });
+    if (u.umb && hold) {
+      const hand = u.umb.parent;
+      hand.updateWorldMatrix(true, false);
+      hand.getWorldQuaternion(_q).invert();
+      _up.copy(_yAxis).applyQuaternion(_q);
+      u.umb.quaternion.setFromUnitVectors(_yAxis, _up);
+      u.umb.rotateZ(Math.sin(simTime * 1.4 + p * 2) * 0.05);
+    }
+  }
+  hero = eggs[0];
+}
 function setWeather(name, instant = false) {
   if (!PRESETS[name]) return;
   target = PRESETS[name]; currentName = name;
   btns.forEach(b => b.classList.toggle('on', b.dataset.w === name));
   updateBadge(name);
-  for (const [n, k] of Object.entries(heroes)) {
-    const on = n === name;
-    k.visible = on;
-    k.userData.blob.visible = on;
-    if (on) {
-      hero = k;
-      // Start on the left of frame; walk into center while camera lags
-      const startX = (instant ? WALK_X0 + 2 : camera.position.x - 4.2);
-      hero.position.x = Math.max(WALK_X0, Math.min(WALK_X1 - 10, startX));
-      hero.position.z = pathCZ(hero.position.x);
-      if (!instant) {
-        // Keep camera where it is so hero appears left and walks to center
-      } else {
-        camera.position.x = hero.position.x - 4.5;
-        controls.target.x = hero.position.x - 3.8;
-      }
-    }
-  }
+  if (umbrella) umbrella.visible = name === 'spring';
+  const startX = instant ? WALK_X0 + 5 : camera.position.x - 6.5;
+  pairX = Math.max(WALK_X0, Math.min(WALK_X1 - 14, startX));
+  posePair(0);
+  if (instant) snapCamera();
   setTreesForSeason(name);
   if (instant) for (const k in target) target[k] instanceof THREE.Color ? cur[k].copy(target[k]) : (cur[k] = target[k]);
 }
@@ -835,59 +1001,18 @@ function update(dt) {
   moonSprite.scale.setScalar(28 + 10 * cur.night);
   sunSprite.material.opacity = THREE.MathUtils.clamp(cur.glow, 0, 1) * (1 - cur.night * 0.85);
 
-  // hero walk L→R
-  const hx = hero.position.x + hero.userData.speed * dt;
-  if (hx > WALK_X1) { hero.position.x = WALK_X0; } else hero.position.x = hx;
-  hero.position.z = pathCZ(hero.position.x) + Math.sin(simTime * 0.4) * 0.02;
-  hero.position.y = hgt(hero.position.x, hero.position.z) - 0.01;
-  hero.userData.heading = Math.PI / 2;
-  hero.rotation.y = hero.userData.heading;
-  hero.userData.blob.position.set(hero.position.x, hgt(hero.position.x, hero.position.z) + 0.03, hero.position.z + 0.05);
-  // Walk along +X: swing on LOCAL X (= world Z after Ry90) — forward/back, not open-close
-  hero.userData.walkPh += dt * 4.0;
-  const ph = hero.userData.walkPh;
-  const wc = Math.sin(ph);
-  const armW = Math.sin(ph - 0.4);
-  const u = hero.userData;
-  const stride = 0.65;
-  u.legs.forEach((l, i) => {
-    const phase = ph + (i === 0 ? Math.PI : 0);
-    // Local X swing = screen-plane stride when character faces +X
-    const thigh = Math.sin(phase) * stride;
-    l.rotation.set(thigh, 0, 0);
-    // Knee folds foot toward butt (negative local X)
-    const flex = Math.max(0, -Math.cos(phase));
-    if (l.userData.shin) l.userData.shin.rotation.set(-0.2 - flex * 0.7, 0, 0);
-  });
-  const bob = Math.sin(ph * 2);
-  u.body.position.y = bob * bob * 0.028;
-  u.torso.scale.y = 1 + Math.sin(simTime * 1.0 + u.ph) * 0.006;
-  u.torso.rotation.x = 0.05;
-  u.torso.rotation.y = -wc * 0.04;
-  u.head.rotation.x = -0.02;
-  u.head.rotation.z = Math.sin(simTime * 0.45 + u.ph) * 0.018;
-  u.head.position.set(0, 1.32, 0);
-  u.arms.forEach((a, i) => {
-    const sx = a.userData.sx;
-    if (u.umb && i === 1) { a.rotation.z = 2.55; a.rotation.x = -0.1; }
-    else {
-      // Arm swing also on local X for forward/back
-      a.rotation.z = sx * 0.22;
-      a.rotation.x = (i ? -1 : 1) * armW * 0.4;
-    }
-  });
-  if (u.umb) { u.umb.g.visible = true; u.umb.g.position.set(0.12, 1.28 + u.body.position.y, 0); u.umb.can.scale.set(1, 1, 1); }
+  posePair(dt);
 
   kids.forEach((kd, i) => {
     if (!kd.position) return;
-    const vis = kd.visible !== false;
+    const vis = kd.visible !== false && kd.position.x < 90;
     kidPosU.value[i].set(vis ? kd.position.x : 99, vis ? (kd.position.z || 0) : 99);
-    kidHU.value[i] = vis ? 1.5 : 0;
+    kidHU.value[i] = vis ? 1.25 : 0;
   });
 
   const shStr = THREE.MathUtils.clamp((cur.sun - 0.4) / 2.0, 0, 1) * (1 - THREE.MathUtils.clamp(cur.fogD / 0.06, 0, 1) * 0.8) * (1 - cur.night * 0.7);
   shadowU.value = shStr; sun.shadow.intensity = shStr; blobMat.opacity = 1 - 0.45 * shStr;
-  sun.target.position.set(hero.position.x, 0, 0); sun.position.set(hero.position.x, 0, 0).addScaledVector(LIGHT_DIR, 30); sun.target.updateMatrixWorld();
+  sun.target.position.set(pairX, 0, 0); sun.position.set(pairX, 0, 0).addScaledVector(LIGHT_DIR, 30); sun.target.updateMatrixWorld();
 
   rainU.uOpacity.value = cur.rain; rainU.uUmb.value = THREE.MathUtils.smoothstep(cur.rain, 0.3, 0.9);
   snowU.uOpacity.value = cur.snow; leafU.uOpacity.value = cur.leaves; windLineU.uOpacity.value = cur.lines;
@@ -901,17 +1026,13 @@ function update(dt) {
   for (const f of flies) {
     const uu = f.userData, t = simTime * uu.sp + uu.ph;
     f.visible = cur.fly > 0.05; f.scale.setScalar(Math.max(cur.fly, 0.001));
-    f.position.set(hero.position.x + uu.cx * 0.15 + Math.sin(t) * uu.ax, uu.cy + Math.sin(t * 2.3) * 0.25, uu.cz + Math.sin(t * 1.7) * uu.az);
+    f.position.set(pairX + uu.cx * 0.15 + Math.sin(t) * uu.ax, uu.cy + Math.sin(t * 2.3) * 0.25, uu.cz + Math.sin(t * 1.7) * uu.az);
     const flap = Math.sin(simTime * 9 + uu.ph * 3) * 0.9; uu.L.rotation.z = flap; uu.R.rotation.z = -flap;
   }
 
-  // camera side-scroll follow — lag behind so hero walks into center
-  const desiredCamX = hero.position.x;
-  const desiredCamY = 2.55;
-  const desiredCamZ = 10.4;
-  const desiredTgtX = hero.position.x;
-  const desiredTgtY = 1.25;
-  const desiredTgtZ = 0.0;
+  const cam = camGoal();
+  const desiredCamX = cam.x, desiredCamY = cam.y, desiredCamZ = cam.z;
+  const desiredTgtX = cam.tx, desiredTgtY = cam.ty, desiredTgtZ = cam.tz;
   const ck = 1 - Math.exp(-dt * 1.15); // slower than hero
   camera.position.x += (desiredCamX - camera.position.x) * ck;
   camera.position.y += (desiredCamY - camera.position.y) * ck;
@@ -931,7 +1052,7 @@ onResize();
 window.simulate = (sec, step = 1 / 30) => { for (let t = 0; t < sec; t += step) update(step); renderer.render(scene, camera); };
 window.renderOnce = () => renderer.render(scene, camera);
 window.kidAct = () => {};
-if (params.has('shot')) { window.__dbg = { kids, camera, controls, scene, renderer, heroes }; renderer.render(scene, camera); window.__ready = true; }
+if (params.has('shot')) { window.__dbg = { kids, camera, controls, scene, renderer, heroes, eggs }; renderer.render(scene, camera); window.__ready = true; }
 else { renderer.setAnimationLoop(frame); window.__ready = true; }
 
 window.THREE_V = THREE.Vector3;
